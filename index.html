@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="css/foundation.min.css">
+    <link rel="stylesheet" href="css/custom.css">
+    <script type="text/javascript" src="js/d3.v3.min.js"></script>
+    <script src="js/d3.slider.js"></script>
+    <script src="js/modernizr.min.js"></script>
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-54754134-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+  </head>
+  <body>
+
+    <nav class="top-bar" data-topbar>
+      <ul class="title-area">
+	<li class="name">
+	  <h1>
+	    <a href="https://matthewralston.github.io">Matthew Ralston</a>
+	  </h1>
+	</li>
+	<li class="toggle-topbar menu-icon"><a href="#"><span>menu</span></a></li>
+      </ul>
+      <section class="top-bar-section">
+	<ul class="right">
+	  <li class="divider"></li>
+	  <li><a href="http://matthewralston.github.io">Home</a></li>
+	  <li class="divider"></li>	  
+	</ul>
+      </section>
+    </nav>
+    <div id="site-description" class="large-12 small-12 columns">
+      <h2>Interactive MA-plot</h2>
+      <p><br/><em>Please enable javascript.</em><br/> This interactive visualization isolates the Log<sub>2</sub> fold change of a gene from an experimental condition versus a control. Points are colored by p-value. Comparisons may be made by select two times, stresses, or stress/time combinations to compare.</p>
+    </div>
+
+
+   <!-- Button -->
+    
+
+    <button id="controls" href="#" data-dropdown="ctrls" data-options="is_hover:true" aria-controls="ctrls" aria-expanded="false" class="button dropdown">Control: Stress type - NS</button><br>
+    <ul id="ctrls" class="f-dropdown" data-dropdown-content aria-hidden="true" tabindex="-1">
+      <li class="datacat ctrls"><a href="#" >N/A</a></li>
+      <li class="datacat ctrls" id="NS"><a href="#">No stress</a></li>
+      <li class="datacat ctrls" id="BA"><a href="#" >Butyrate</a></li>
+      <li class="datacat ctrls" id="BuOH"><a href="#">Butanol</a></li>
+    </ul>
+
+    <button id="controlt" href="#" data-dropdown="ctrlt" data-options="is_hover:true" aria-controls="ctrlt" aria-expanded="false" class="button dropdown">Control: Time point - N/A</button><br>
+    <ul id="ctrlt" class="f-dropdown" data-dropdown-content aria-hidden="true" tabindex="-1">
+      <li class="datacat ctrlt"><a href="#">N/A</a></li>
+      <li class="datacat ctrlt" id="15"><a href="#">15 minutes</a></li>
+      <li class="datacat ctrlt" id="75"><a href="#">75 minutes</a></li>
+      <li class="datacat ctrlt" id="150"><a href="#">150 minutes</a></li>
+      <li class="datacat ctrlt" id="270"><a href="#">270 minutes</a></li>
+    </ul>
+
+    <button id="variables" href="#" data-dropdown="expts" data-options="is_hover:true" aria-controls="expts" aria-expanded="false" class="button dropdown">Variable: Stress type - Butyrate</button><br>
+    <ul id="expts" class="f-dropdown" data-dropdown-content aria-hidden="true" tabindex="-1">
+      <li class="datacat exps"><a href="#" >N/A</a></li>
+      <li class="datacat exps" id="NS"><a href="#">No stress</a></li>
+      <li class="datacat exps" id="BA"><a href="#" >Butyrate</a></li>
+      <li class="datacat exps" id="BuOH"><a href="#">Butanol</a></li>
+    </ul>
+
+    <button id="variablet" href="#" data-dropdown="exptt" data-options="is_hover:true" aria-controls="exptt" aria-expanded="false" class="button dropdown">Variable: Time point - N/A</button><br>
+    <ul id="exptt" class="f-dropdown" data-dropdown-content aria-hidden="true" tabindex="-1">
+      <li class="datacat expt"><a href="#">N/A</a></li>
+      <li class="datacat expt" id="15"><a href="#">15 minutes</a></li>
+      <li class="datacat expt" id="75"><a href="#">75 minutes</a></li>
+      <li class="datacat expt" id="150"><a href="#">150 minutes</a></li>
+      <li class="datacat expt" id="270"><a href="#">270 minutes</a></li>
+    </ul>
+
+    <a id="generate" href="#" class="button">Generate</a>
+
+
+
+    <div id="viewer" class="large12 small-12 columns">
+      <div>
+	<p id="messages"></p>
+      </div>
+      <h2>Significance slider: <span id="slidertext">Log<sub>10</sub> exponent: -1.301, p < 0.05</span></h2>
+      <div id="slider" style="width:600px;"></div>
+    </div>
+
+    <script type="text/javascript">
+     var dataset,
+     width = 800,
+     height = 600,
+     padding = 50,
+     svg = d3.select("#viewer")
+	     .append("svg")
+	     .attr("width",width)
+	     .attr("height",height),
+     xScale,
+     yScale,
+     xAxis,
+     yAxis,
+     fillScale,
+     scale = 1.301,
+     ctrls = 'NS',
+     ctrlt = '',
+     exps = 'BA',
+     min = 0,
+     cond,
+     par,
+     expt = '';
+     // Initialize the graph
+     makegraph();
+     // P-value slider
+     d3.select("#slider").call(d3.slider().axis(true).min(0).max(10).value(1.301).on("slide",function(evt,value) {
+       d3.select("#slidertext").html("Log<sub>10</sub> exponent: -"+Number((value).toFixed(2))+", p < "+Number((Math.pow(10,-value).toFixed(2))));
+       updatefill(value);
+     }));
+     // Data selection
+     d3.selectAll(".datacat").on("click",function(d){ 
+       cond = d3.select(this);
+       par = d3.select(this.parentNode);
+       if (cond.attr("class") === "datacat ctrls") {
+	 ctrls = assignment(cond);
+	 d3.select("#controls").text("Control: Stress type - "+ctrls);
+       } else if (cond.attr("class") === "datacat ctrlt") {
+	 ctrlt = assignment(cond);
+	 d3.select("#controlt").text("Control: Time point - "+ctrlt);
+       } else if (cond.attr("class") === "datacat exps") {
+	 exps = assignment(cond);
+	 d3.select("#variables").text("Variable: Stress type - "+exps);
+       } else {
+	 expt = assignment(cond);
+	 d3.select("#variablet").text("Variable: Time point - "+expt);
+       }
+     });
+     d3.select("#generate").on("click",function() {update();});
+
+
+
+     // Return a lists id attribute to the appropriate file component
+     function assignment(thing) {
+       if (thing.attr("id") === null) {
+	 return ''
+       } else {
+	 return thing.attr("id")
+       }
+     }
+     // Update the fill, given a user selected value for the scale's maximumn
+     function updatefill(scale) {
+       fillScale = d3.scale.linear()
+			   .domain([min,scale]).range([0,255]).nice();
+       d3.selectAll("circle")
+	 .attr({
+	   fill: function(d) {return "rgb("+Math.floor(fillScale(d.pval))+",50,"+(255-Math.floor(fillScale(d.pval)))+")";}});
+     }
+
+     // Update the graph itself
+     function updategraph() {
+       // Make linear scales
+       xScale = xScale.domain([0,d3.max(dataset,function(d) { return d.Logexp;})]);
+       yScale = yScale.domain([d3.min(dataset,function(d){return d.foldchange;}),d3.max(dataset,function(d){return d.foldchange;})]);
+       fillScale = fillScale.domain([d3.min(dataset,function(d){return d.pval;}),scale]);
+       // Update axes
+       svg.select(".x.axis")
+	  .transition()
+	  .duration(1000)
+	  .call(xAxis);
+       svg.select(".y.axis")
+	  .transition()
+	  .duration(1000)
+	  .call(yAxis);
+       // Update points
+       svg.selectAll("circle")
+	  .data(dataset)
+	  .transition()
+	  .duration(1000)
+	  .attr({
+	    cx: function(d) {return xScale(d.Logexp);},
+	    cy: function(d) {return yScale(d.foldchange);},
+	    fill: function(d) {return "rgb("+Math.floor(fillScale(d.pval))+",50,"+(255-Math.floor(fillScale(d.pval)))+")";},
+	    r: 3,
+	    log10pval: function(d) {return d.pval;},
+	    pval: function(d) {return Math.pow(10,-d.pval);},
+	    id: function(d) {return d.id;},
+	    foldchange: function(d) {return d.foldchange;},
+	    expression: function(d) {return Math.pow(10,d.Logexp);}
+	  });
+       min = d3.min(dataset,function(d) {return d.pval;});
+     }
+
+     // Update the data for graph updating
+     function updatedata() {
+
+       if (ctrls === '') {
+	 d3.csv("data/"+expt+"."+ctrlt+".csv",function(data) {
+	   cleandata(data);
+	   dataset = data;
+	   updategraph();
+	 });
+       } else if (ctrlt === '') {
+	 d3.csv("data/"+exps+"."+ctrls+".csv",function(data) {
+	   cleandata(data);
+	   dataset = data;
+	   updategraph();
+	 });
+       } else {
+	 d3.csv("data/"+exps+"."+expt+"-"+ctrls+"."+ctrlt+".csv",function(data) {
+	   cleandata(data);
+	   dataset = data;
+	   updategraph();
+	 });
+       }
+     }
+
+     // Generic wrapping function, tests for valid file components, updates data + graph
+     function update() {
+       d3.select("#messages").text("")
+       // This function updates the dataset and graph
+       if (!(ctrls === exps && ctrlt === expt) && !((ctrls === '' ^ exps === '') || (ctrlt === '' ^ expt === '')) && !(ctrls === '' && ctrlt === '' && exps === '' && expt === '')) {
+	 updatedata();
+         d3.select("#messages").text("updated!")
+	 }
+       else {
+	 d3.select("#messages").text("Please select a non-trivial comparison of two stress conditions, two time conditions, or two stress/time combinations. (e.g. 15m vs 75m, not 15m vs NS-75m)");
+	 }
+     }
+
+     // Graph initialization
+     function makegraph() {
+       // Load initial dataset, set scale, axes
+       d3.csv("data/"+exps+"."+ctrls+".csv",function(data) {
+	 cleandata(data);
+	 dataset = data;
+	 // Make linear scales
+	 xScale = d3.scale.linear()
+			  .domain([0,d3.max(dataset,function(d) { return d["Logexp"];})])
+			  .range([padding,width-padding])
+	 yScale = d3.scale.linear()
+			  .domain([d3.min(dataset,function(d){return d["foldchange"];}),d3.max(dataset,function(d){return d["foldchange"];})])
+			  .range([height-padding,padding])
+	 fillScale = d3.scale.linear()
+			     .domain([d3.min(dataset,function(d){return d["pval"];}),scale]).range([0,255]).nice()
+	 // Make Axes
+	 xAxis = d3.svg.axis()
+		       .scale(xScale)
+		       .orient("bottom");
+	 yAxis = d3.svg.axis()
+		       .scale(yScale)
+		       .orient("left");
+	 svg.append("g")
+	    .attr("class","x axis")
+	    .attr("transform","translate(0,"+(height - padding) + ")")
+	    .call(xAxis)
+	 svg.append("g")
+	    .attr("class","y axis")
+	    .attr("transform","translate("+padding+",0)")
+	    .call(yAxis);
+	 // Make initial points
+	 svg.selectAll("circles")
+	  .data(dataset)
+	  .enter()
+	  .append("circle")
+	  .attr({
+	    cx: function(d) {return xScale(d["Logexp"]);},
+	    cy: function(d) {return yScale(d["foldchange"]);},
+	    fill: function(d) {return "rgb("+Math.floor(fillScale(d.pval))+",50,"+(255-Math.floor(fillScale(d.pval)))+")";},
+	    r: 3,
+	    log10pval: function(d) {return d.pval;},
+	    pval: function(d) {return Math.pow(10,-d.pval);},
+	    id: function(d) {return d.id;},
+	    foldchange: function(d) {return d.foldchange;},
+	    expression: function(d) {return Math.pow(10,d.Logexp);}
+	  });
+	 min = d3.min(dataset,function(d) {return d.pval;});
+
+       });
+     }
+
+     // Changes quote csv input into appropriate json objects
+     function cleandata(data) {
+       data.forEach (function(d) {
+	 d.pval = +d.pval;
+	 d.foldchange = +d.foldchange;
+	 d.Logexp = +d.Logexp;
+       });
+     }
+     // Deprecated log10 function
+     function log10(n){return Math.log(n)/Math.log(10);}
+
+    </script>
+    <script src="./js/jquery.js"></script>
+    <script src="./js/fastclick.js"></script>
+    <script src="./js/foundation.min.js"></script>
+    <script src="./js/foundation.dropdown.js"></script>
+    <script>
+     $(document).foundation();
+    </script>
+  </body>
+</html>
