@@ -1,5 +1,36 @@
-svg {
-  padding: 5px;
+.svg {
+  padding: 10px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: black;
+  shape-rendering: crispEdges;
+}
+
+.axis text {
+  font-family: sans-serif;
+  font-size: 11px;
+}
+
+#tooltip {
+  opacity: 1.0;
+}
+
+#messages {
+  padding: 15px;
+  opacity: 1.0;
+}
+
+#x-label {
+  font-size: 15px;
+  font-family: sans-serif;
+}
+
+#y-label {
+  font-size: 15px;
+  font-family: sans-serif;
 }
 
 .button {

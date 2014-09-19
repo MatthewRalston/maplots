@@ -17,6 +17,31 @@
   ga('send', 'pageview');
 
 </script>
+<style type="text/css">
+ #tooltip {
+   position: absolute;
+   width: 200px;
+   height: autopx:
+   padding: 10px;
+   background-color: white;
+   -webkit-border-radius: 10px;
+   -mox-border-radius: 10px;
+   border-radius: 10px
+   -webkit-box-shadow: 4px 4px 10px rgba(0,0,0,0.4);
+   -moz-box-shadow: 4px 4px 10px rgba(0,0,0,0.4);
+   box-shadow: 4px 4px 10px rgba(0,0,0,0.4);
+   pointer-events: none;
+ }
+ #tooltip.hidden {
+   display: none;
+ }
+ #tooltip p {
+   margin: 0;
+   font-family: sans-serif;
+   font-size: 16px;
+   line-height: 20px;
+ }
+</style>
   </head>
   <body>
 
@@ -85,35 +110,47 @@
 
 
     <div id="viewer" class="large12 small-12 columns">
+      <div id="tooltip" class="hidden">
+	<div id="messages">
+	  <p><strong>Selected point</strong></p>
+	  <p><span id="value"></span></p>
+	</div>
+      </div>
       <div>
 	<p id="messages"></p>
       </div>
       <h2>Significance slider: <span id="slidertext">Log<sub>10</sub> exponent: -1.301, p < 0.05</span></h2>
       <div id="slider" style="width:600px;"></div>
+      <br/>
     </div>
 
     <script type="text/javascript">
      var dataset,
-     width = 800,
-     height = 600,
-     padding = 50,
+     margin = {top: 10, right: 10, bottom: 30, left: 50},
+     width = 900 - margin.left - margin.right,
+     height = 600 - margin.top - margin.bottom,
      svg = d3.select("#viewer")
 	     .append("svg")
-	     .attr("width",width)
-	     .attr("height",height),
+	     .attr("width",width + margin.left + margin.right)
+	     .attr("height",height + margin.top + margin.bottom)
+     .attr("transform","translate(" + margin.left + "," + margin.top + ")"),
      xScale,
      yScale,
      xAxis,
      yAxis,
+     xLog,
      fillScale,
      scale = 1.301,
      ctrls = 'NS',
      ctrlt = '',
      exps = 'BA',
+     expt = '',
      min = 0,
      cond,
-     par,
-     expt = '';
+     circles,
+     radius = 3,
+     fill,
+     adjustment = 2000;
      // Initialize the graph
      makegraph();
      // P-value slider
@@ -142,6 +179,25 @@
      d3.select("#generate").on("click",function() {update();});
 
 
+     //  F U N C T I O N S
+     function mouse0ver(circle) {
+       fill = circle.style("fill")
+       circle.classed("cell-hover",true)
+       circle.attr("r",5).style("fill","black");
+       d3.select("#tooltip")
+	 .style("left",(d3.event.pageX+100)+"px")
+	 .style("top",(d3.event.pageY-300)+"px")
+	 .style("width","400px").style("height","200px")
+	 .select("#value")
+	 .html("Labels: Gene ID = "+circle.attr("id")+"<br/>Mean expression (read counts) = "+parseFloat(circle.attr("expression")).toFixed(2)+"<br/>Log<sub>2</sub> fold change = "+parseFloat(circle.attr("foldchange")).toFixed(3)+"<br/>Log<sub>10</sub> p-value = "+parseFloat(circle.attr("log10pval")).toFixed(2)+"<br/>p-value = "+parseFloat(circle.attr("pval")).toFixed(5));
+       d3.select("#tooltip").classed("hidden",false);
+     }
+     
+     function mouse0ut(circle) {
+       d3.select("#tooltip").classed("hidden",true);
+       circle.transition().duration(500).style("fill",fill).attr("r",radius);
+       circle.classed("cell-hover",false)
+     }
 
      // Return a lists id attribute to the appropriate file component
      function assignment(thing) {
@@ -165,26 +221,45 @@
        // Make linear scales
        xScale = xScale.domain([0,d3.max(dataset,function(d) { return d.Logexp;})]);
        yScale = yScale.domain([d3.min(dataset,function(d){return d.foldchange;}),d3.max(dataset,function(d){return d.foldchange;})]);
+       xLog = xLog.domain([1,d3.max(dataset,function(d) {return Math.pow(10,d["Logexp"]);})])
+       //xAxis = xAxis.scale(xLog)
        fillScale = fillScale.domain([d3.min(dataset,function(d){return d.pval;}),scale]);
        // Update axes
        svg.select(".x.axis")
 	  .transition()
-	  .duration(1000)
-	  .call(xAxis);
+	  .duration(adjustment)
+	  .call(xAxis)
+	  .selectAll(".tick text")
+	  .text(null)
+	  .filter(powerOfTen)
+	  .text(10)
+	  .each("end",function() {
+	    d3.select(this).append("tspan")
+	      .attr("dy", "-.7em").style("font-size","6pt")
+	      .text(function(d) { return Math.round(Math.log(d) / Math.LN10)});
+});
        svg.select(".y.axis")
 	  .transition()
-	  .duration(1000)
-	  .call(yAxis);
+	  .duration(adjustment)
+	  .call(yAxis)
+	  .selectAll(".tick text")
+	   .text(null)
+	   .text(2)
+	   .each("end",function() {
+	     d3.select(this).append("tspan")
+	       .attr("dy","-.7em").style("font-size","6pt")
+	       .text(function(d){return d})
+	   });
        // Update points
        svg.selectAll("circle")
 	  .data(dataset)
 	  .transition()
-	  .duration(1000)
+	  .duration(adjustment)
 	  .attr({
-	    cx: function(d) {return xScale(d.Logexp);},
+	    cx: function(d) {return xScale(d.Logexp) + margin.left;},
 	    cy: function(d) {return yScale(d.foldchange);},
 	    fill: function(d) {return "rgb("+Math.floor(fillScale(d.pval))+",50,"+(255-Math.floor(fillScale(d.pval)))+")";},
-	    r: 3,
+	    r: radius,
 	    log10pval: function(d) {return d.pval;},
 	    pval: function(d) {return Math.pow(10,-d.pval);},
 	    id: function(d) {return d.id;},
@@ -192,6 +267,8 @@
 	    expression: function(d) {return Math.pow(10,d.Logexp);}
 	  });
        min = d3.min(dataset,function(d) {return d.pval;});
+       circles = d3.selectAll("circle");
+       circles.on("mouseover",function(d){mouse0ver(d3.select(this));}).on("mouseout",function(d) {mouse0ut(d3.select(this));});
      }
 
      // Update the data for graph updating
@@ -240,37 +317,56 @@
 	 // Make linear scales
 	 xScale = d3.scale.linear()
 			  .domain([0,d3.max(dataset,function(d) { return d["Logexp"];})])
-			  .range([padding,width-padding])
+			  .range([0,width])
+	 xLog = d3.scale.log()
+			.domain([1,d3.max(dataset,function(d) {return Math.pow(10,d["Logexp"]);})])
+		 .range([0,width]);
 	 yScale = d3.scale.linear()
 			  .domain([d3.min(dataset,function(d){return d["foldchange"];}),d3.max(dataset,function(d){return d["foldchange"];})])
-			  .range([height-padding,padding])
+			  .range([height,0])
+	 yLog = d3.scale.linear()
+	 .domain([d3.min(dataset,function(d) {return Math.pow(2,d["foldchange"])}),d3.max(dataset,function(d){return Math.pow(2,d["foldchange"])})])
+	 .range([height,0]);
 	 fillScale = d3.scale.linear()
 			     .domain([d3.min(dataset,function(d){return d["pval"];}),scale]).range([0,255]).nice()
 	 // Make Axes
 	 xAxis = d3.svg.axis()
-		       .scale(xScale)
+		       .scale(xLog)
 		       .orient("bottom");
 	 yAxis = d3.svg.axis()
 		       .scale(yScale)
 		       .orient("left");
 	 svg.append("g")
 	    .attr("class","x axis")
-	    .attr("transform","translate(0,"+(height - padding) + ")")
-	    .call(xAxis)
+	    .attr("transform","translate("+margin.left+","+height + ")")
+	    .call(xAxis);
+	 d3.selectAll(".x").selectAll(".tick text")
+	   .text(null)
+	   .filter(powerOfTen)
+	   .text(10)
+	   .append("tspan")
+	   .attr("dy","-.7em").style("font-size","6pt")
+	   .text(function(d){return Math.round(Math.log(d) / Math.LN10);});
 	 svg.append("g")
 	    .attr("class","y axis")
-	    .attr("transform","translate("+padding+",0)")
+	    .attr("transform","translate("+margin.left+",0)")
 	    .call(yAxis);
+	 d3.selectAll(".y").selectAll(".tick text")
+	   .text(null)
+	   .text(2)
+	   .append("tspan")
+	   .attr("dy","-.7em").style("font-size","6pt")
+	   .text(function(d){return d});
 	 // Make initial points
-	 svg.selectAll("circles")
+	 svg.selectAll("circle")
 	  .data(dataset)
 	  .enter()
 	  .append("circle")
 	  .attr({
-	    cx: function(d) {return xScale(d["Logexp"]);},
+	    cx: function(d) {return xScale(d["Logexp"])+margin.left;},
 	    cy: function(d) {return yScale(d["foldchange"]);},
 	    fill: function(d) {return "rgb("+Math.floor(fillScale(d.pval))+",50,"+(255-Math.floor(fillScale(d.pval)))+")";},
-	    r: 3,
+	    r: radius,
 	    log10pval: function(d) {return d.pval;},
 	    pval: function(d) {return Math.pow(10,-d.pval);},
 	    id: function(d) {return d.id;},
@@ -278,6 +374,23 @@
 	    expression: function(d) {return Math.pow(10,d.Logexp);}
 	  });
 	 min = d3.min(dataset,function(d) {return d.pval;});
+	 circles = d3.selectAll("circle");
+	 circles.on("mouseover",function(d){mouse0ver(d3.select(this));}).on("mouseout",function(d){mouse0ut(d3.select(this));});
+	 svg.append("text")
+	    .attr("class","x label")
+	    .attr("id","x-label")
+	    .attr("x",width/2 - 50)
+	    .attr("y",height + 30)
+	    .text("Avg. Expression: Read Counts")
+	 svg.append("text")
+	    .attr("class","y label")
+	    .attr("id","y-label")
+	    .attr("text-anchor","end")
+	    .attr("y",margin.left - 40)
+	    .attr("x", -margin.top - height/2)
+	    .attr("dy",".15em")
+	    .text("Fold Change")
+	    .attr("transform","rotate(-90)");
 
        });
      }
@@ -292,6 +405,8 @@
      }
      // Deprecated log10 function
      function log10(n){return Math.log(n)/Math.log(10);}
+     function powerOfTen(d){return d/Math.pow(10,Math.ceil(Math.log(d)/Math.LN10 - 1e-12)) === 1;}
+     function powerOfTwo(d) {return d/Math.pow(2,Math.ceil(Math.log(d)/Math.log(2))) === 1;}
     </script>
     <footer class="row">
       <div class="large-6 columns">
